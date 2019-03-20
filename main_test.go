@@ -48,6 +48,26 @@ func TestLatestVersions(t *testing.T) {
 			expectedResult: []string{"2.2.1"},
 			minVersion:     semver.New("2.2.1"),
 		},
+		{
+			versionSlice:   []string{"1.2.1", "2.2.1", "3.2.1"},
+			expectedResult: []string{"3.2.1", "2.2.1", "1.2.1"},
+			minVersion:     semver.New("1.2.1"),
+		},
+		{
+			versionSlice:   []string{"1.2.1", "1.2.2", "1.2.2"},
+			expectedResult: []string{"1.2.2"},
+			minVersion:     semver.New("1.2.1"),
+		},
+		{
+			versionSlice:   []string{"0.0.5", "0.0.1", "0.0.9", "01.1.7", "01.1.10"},
+			expectedResult: []string{"1.1.10","0.0.9"},
+			minVersion:     semver.New("0.0.0"),
+		},
+		{
+			versionSlice:   []string{"0.0.0"},
+			expectedResult: []string{"0.0.0"},
+			minVersion:     semver.New("0.0.0"),
+		},
 		// Implement more relevant test cases here, if you can think of any
 	}
 
@@ -57,7 +77,9 @@ func TestLatestVersions(t *testing.T) {
 			if versionString != expectedResult[i] {
 				t.Errorf("Received %s, expected %s", stringSlice, expectedResult)
 				return
-			}
+			}/*else{
+				t.Errorf("Received %s, expected %s", stringSlice, expectedResult)
+			}*/
 		}
 	}
 

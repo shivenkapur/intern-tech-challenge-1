@@ -5,17 +5,15 @@ import (
 	"context"
 	"fmt"
 
-	"io"
-
 	"flag"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-github/github"
 
+	"io"
 	"os"
 
 	"sort"
-
 	"strings"
 )
 
@@ -23,44 +21,35 @@ import (
 func LatestVersions(releases []*semver.Version, minVersion *semver.Version) []*semver.Version {
 
 	var versionSlice []*semver.Version
-	var tempversions []*semver.Version
-	// This is just an example structure of the code, if you implement this interface, the test cases in main_test.go are very easy to run
-	for _,release := range releases {
-		
-		if minVersion.LessThan(*release) {
-			tempversions = append(tempversions,release)
-		}
-	}
 
-	sort.Slice(tempversions, func(i, j int) bool {
-		return tempversions[j].LessThan(*tempversions[i])
+	sort.Slice(releases, func(i, j int) bool {
+		return releases[j].LessThan(*releases[i])
 	})
-
-
-	fmt.Printf("%s\n",tempversions)
 
 	var(
 		minor int64 = -1
 		major int64 = -1
 	)
-	for _,version := range tempversions{
-		if(minor != version.Minor || major != version.Major){
-			versionSlice = append(versionSlice, version)
-			minor = version.Minor
-			major = version.Major
+	for _,release := range releases {
+		var isLesserorEqualtoMin bool = minVersion.LessThan(*release) || minVersion.Equal(*release) 
+		if isLesserorEqualtoMin {
+			if minor != release.Minor || major != release.Major {
+				versionSlice = append(versionSlice, release)
+				minor = release.Minor
+				major = release.Major
+			}
 		}
 	}
-
 	return versionSlice
 }
 
-func AllReleases(s1 string, s2 string) ([]*semver.Version){
+func AllReleases(githubProfileName string, repoName string) ([]*semver.Version){
 	client := github.NewClient(nil)
 	ctx := context.Background()
 	opt := &github.ListOptions{PerPage: 10}
-	releases, _, err := client.Repositories.ListReleases(ctx, s1, s2, opt)
+	releases, _, err := client.Repositories.ListReleases(ctx, githubProfileName, repoName, opt)
 	if err != nil {
-		fmt.Printf("Error: %s", err)
+		fmt.Printf("Error getting releases from Github: %s", err)
 	}
 	allReleases := make([]*semver.Version, len(releases))
 	
@@ -75,7 +64,7 @@ func AllReleases(s1 string, s2 string) ([]*semver.Version){
 	return allReleases
 }
 
-func getValues(line []byte) (string, string , *semver.Version){
+func getValuesFromFile(line []byte) (string, string , *semver.Version){
 	splitline := strings.Split(string(line) , ",")
 
 	repository := splitline[0]
@@ -85,36 +74,42 @@ func getValues(line []byte) (string, string , *semver.Version){
 	return s[0],s[1], semver.New(minversion)
 }
 
-// Here we implement the basics of communicating with github through the library as well as printing the version
-// You will need to implement LatestVersions function as well as make this application support the file format outlined in the README
-// Please use the format defined by the fmt.Printf line at the bottom, as we will define a passing coding challenge as one that outputs
-// the correct information, including this line
 func main() {
-	// Github
+	// get filename entered in command line
 	flag.Parse()
     filename := flag.Arg(0)
 	
+	//open file with the specified file name
 	file, err := os.Open(filename)
 
 	if err != nil {
-		fmt.Printf("failed opening file: %s", err)
+		fmt.Printf("Error while opening file: %s", err)
 	} else{
+		//initalize reader
 		reader := bufio.NewReader(file)
+		//read the first lien from the file - repository,min_version
 		line, _, err := reader.ReadLine()
 
-		for i := 0; ;i++ {
+		var Iserror bool = false
+		//read all subsequent lines and exit if there's an error
+		for i := 0; !Iserror ;i++ {
 			line, _, err = reader.ReadLine()
 
 			if err == io.EOF{
-				break
+				Iserror = true
+			} else if err == nil{
+				//get data from a single line in the file
+				githubProfileName,repoName,minVersion := getValuesFromFile(line)
+				//get all releases from github repository
+				allReleases := AllReleases(githubProfileName,repoName)
+				//get sorted max patch versions
+				versionSlice := LatestVersions(allReleases, minVersion)
+
+				fmt.Printf("latest versions of %s/%s: %s\n", githubProfileName , repoName , versionSlice)
+			} else{
+				fmt.Printf("Error while reading file: %s", err)
+				Iserror = true
 			}
-
-			s1,s2,minVersion := getValues(line)
-			allReleases := AllReleases(s1,s2)
-			versionSlice := LatestVersions(allReleases, minVersion)
-
-			fmt.Printf("latest versions of %s/%s: %s\n", s1 , s2 , versionSlice)
-			
 		}
 	}
 
